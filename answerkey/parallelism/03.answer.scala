@@ -5,6 +5,21 @@ def map2[A,B,C](a: Par[A], b: Par[B])(f: (A,B) => C): Par[C] =
     Map2Future(af, bf, f)
   }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /*
 Note: this implementation will not prevent repeated evaluation if multiple threads call `get` in parallel. We could prevent this using synchronization, but it isn't needed for our purposes here (also, repeated evaluation of pure values won't affect results).
 */
@@ -24,7 +39,8 @@ case class Map2Future[A,B,C](a: Future[A], b: Future[B],
     case None =>
       val start = System.nanoTime
       val ar = a.get(timeoutInNanos, TimeUnit.NANOSECONDS)
-      val stop = System.nanoTime;val aTime = stop-start
+      val stop = System.nanoTime
+      val aTime = stop-start
       val br = b.get(timeoutInNanos - aTime, TimeUnit.NANOSECONDS)
       val ret = f(ar, br)
       cache = Some(ret)

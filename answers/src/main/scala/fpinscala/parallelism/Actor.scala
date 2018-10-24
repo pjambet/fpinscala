@@ -1,7 +1,7 @@
 package fpinscala.parallelism
 
 import java.util.concurrent.atomic.{AtomicInteger, AtomicReference}
-import java.util.concurrent.{Callable,ExecutorService}
+import java.util.concurrent.{Callable, ExecutorService}
 import annotation.tailrec
 
 /*
@@ -16,27 +16,29 @@ import annotation.tailrec
  */
 
 /**
- * Processes messages of type `A`, one at a time. Messages are submitted to
- * the actor with the method `!`. Processing is typically performed asynchronously,
- * this is controlled by the provided `strategy`.
- *
- * Memory consistency guarantee: when each message is processed by the `handler`, any memory that it
- * mutates is guaranteed to be visible by the `handler` when it processes the next message, even if
- * the `strategy` runs the invocations of `handler` on separate threads. This is achieved because
- * the `Actor` reads a volatile memory location before entering its event loop, and writes to the same
- * location before suspending.
- *
- * Implementation based on non-intrusive MPSC node-based queue, described by Dmitriy Vyukov:
- * [[http://www.1024cores.net/home/lock-free-algorithms/queues/non-intrusive-mpsc-node-based-queue]]
- *
- * @see scalaz.concurrent.Promise for a use case.
- *
- * @param handler  The message handler
- * @param onError  Exception handler, called if the message handler throws any `Throwable`.
- * @param strategy Execution strategy, for example, a strategy that is backed by an `ExecutorService`
- * @tparam A       The type of messages accepted by this actor.
- */
-final class Actor[A](strategy: Strategy)(handler: A => Unit, onError: Throwable => Unit = throw(_)) {
+  * Processes messages of type `A`, one at a time. Messages are submitted to
+  * the actor with the method `!`. Processing is typically performed asynchronously,
+  * this is controlled by the provided `strategy`.
+  *
+  * Memory consistency guarantee: when each message is processed by the `handler`, any memory that it
+  * mutates is guaranteed to be visible by the `handler` when it processes the next message, even if
+  * the `strategy` runs the invocations of `handler` on separate threads. This is achieved because
+  * the `Actor` reads a volatile memory location before entering its event loop, and writes to the same
+  * location before suspending.
+  *
+  * Implementation based on non-intrusive MPSC node-based queue, described by Dmitriy Vyukov:
+  * [[http://www.1024cores.net/home/lock-free-algorithms/queues/non-intrusive-mpsc-node-based-queue]]
+  *
+  * @see scalaz.concurrent.Promise for a use case.
+  *
+  * @param handler  The message handler
+  * @param onError  Exception handler, called if the message handler throws any `Throwable`.
+  * @param strategy Execution strategy, for example, a strategy that is backed by an `ExecutorService`
+  * @tparam A       The type of messages accepted by this actor.
+  */
+final class Actor[A](strategy: Strategy)(
+    handler: A => Unit,
+    onError: Throwable => Unit = throw (_)) {
   self =>
 
   private val tail = new AtomicReference(new Node[A]())
@@ -45,8 +47,12 @@ final class Actor[A](strategy: Strategy)(handler: A => Unit, onError: Throwable 
 
   /** Alias for `apply` */
   def !(a: A) {
+    println(s"received message: $a")
     val n = new Node(a)
-    head.getAndSet(n).lazySet(n)
+    println(s"n: $n, n.a: ${n.a}")
+    val oldHead = head.getAndSet(n)
+    println(s"oldHead: $oldHead, oldHead.a: ${oldHead.a}")
+    oldHead.lazySet(n)
     trySchedule()
   }
 
@@ -63,51 +69,74 @@ final class Actor[A](strategy: Strategy)(handler: A => Unit, onError: Throwable 
   }
 
   private def schedule() {
+    println(s"[${Thread.currentThread().getId}] schedule")
     strategy(act())
   }
 
   private def act() {
+    println("act")
     val t = tail.get
-    val n = batchHandle(t, 1024)
+    println(s"t: $t, t.a: ${t.a}")
+    val n = batchHandle(t, 2)
+    println("Done with batchHandle")
+    println(s"[${Thread.currentThread().getId}]n: $n, n.a: ${n.a}")
+    println(s"Suspending or not?: ${n ne t}")
     if (n ne t) {
+      println("Not suspending, scheduling")
       n.a = null.asInstanceOf[A]
       tail.lazySet(n)
       schedule()
     } else {
+      println("suspending")
       suspended.set(1)
-      if (n.get ne null) trySchedule()
+      val nget = n.get
+      println(s"n.get: $nget")
+      if (nget ne null) trySchedule()
     }
   }
 
   @tailrec
   private def batchHandle(t: Node[A], i: Int): Node[A] = {
-    val n = t.get
+    println("batchHandle")
+    val n: Node[A] = t.get
+    println(s"i: $i")
+    println(s"[${Thread.currentThread().getId}]n: $n, n.a: ${n.a}")
+    println(s"n is not null? : ${n ne null}")
     if (n ne null) {
       try {
         handler(n.a)
       } catch {
         case ex: Throwable => onError(ex)
       }
-      if (i > 0) batchHandle(n, i - 1) else n
+      if (i > 0) {
+        println(s"looping with i: $i")
+        batchHandle(n, i - 1)
+      } else n
     } else t
   }
 }
 
-private class Node[A](var a: A = null.asInstanceOf[A]) extends AtomicReference[Node[A]]
+private class Node[A](var a: A = null.asInstanceOf[A])
+    extends AtomicReference[Node[A]] {
+
+  override def toString: String = s"a: $a, get: $get"
+}
 
 object Actor {
 
   /** Create an `Actor` backed by the given `ExecutorService`. */
-  def apply[A](es: ExecutorService)(handler: A => Unit, onError: Throwable => Unit = throw(_)): Actor[A] =
+  def apply[A](es: ExecutorService)(
+      handler: A => Unit,
+      onError: Throwable => Unit = throw (_)): Actor[A] =
     new Actor(Strategy.fromExecutorService(es))(handler, onError)
 }
 
 /**
- * Provides a function for evaluating expressions, possibly asynchronously.
- * The `apply` function should typically begin evaluating its argument
- * immediately. The returned thunk can be used to block until the resulting `A`
- * is available.
- */
+  * Provides a function for evaluating expressions, possibly asynchronously.
+  * The `apply` function should typically begin evaluating its argument
+  * immediately. The returned thunk can be used to block until the resulting `A`
+  * is available.
+  */
 trait Strategy {
   def apply[A](a: => A): () => A
 }
@@ -115,23 +144,25 @@ trait Strategy {
 object Strategy {
 
   /**
-   * We can create a `Strategy` from any `ExecutorService`. It's a little more
-   * convenient than submitting `Callable` objects directly.
-   */
+    * We can create a `Strategy` from any `ExecutorService`. It's a little more
+    * convenient than submitting `Callable` objects directly.
+    */
   def fromExecutorService(es: ExecutorService): Strategy = new Strategy {
     def apply[A](a: => A): () => A = {
-      val f = es.submit { new Callable[A] { def call = a} }
-      () => f.get
+      val f = es.submit { new Callable[A] { def call = a } }
+      () =>
+        f.get
     }
   }
 
   /**
-   * A `Strategy` which begins executing its argument immediately in the calling thread.
-   */
+    * A `Strategy` which begins executing its argument immediately in the calling thread.
+    */
   def sequential: Strategy = new Strategy {
     def apply[A](a: => A): () => A = {
       val r = a
-      () => r
+      () =>
+        r
     }
   }
 }

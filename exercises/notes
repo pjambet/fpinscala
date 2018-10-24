@@ -1,0 +1,34 @@
+Functor:
+    map[F[_], A, B](f: A => B): F[B]
+
+Monoid:
+    op[A](a1: A, a2: A): A
+    zero[A]: A
+
+Foldable
+    foldMap[F[_], A, B](as: F[A])(f: A => B)(mb: Monoid[B]): B
+    OR
+    foldRight[F[_], A, B](as: F[A])(z: B)(f: (A, B) => B): B
+    foldLeft[F[_], A, B](as: F[A])(z: B)(f: (B, A) => B): B
+
+Applicative is a Functor:
+    unit[F[_], A](a: => A): F[A]
+
+    apply[F[_], A, B](fab: F[A => B])(fa: F[A]): F[B]
+    OR
+    map2[F[_], A, B, C](fa: F[A], fb: F[B])(f: (A,B) => C): F[C]
+
+Monad is an Applicative:
+    unit[F[_], A](a: => A): F[A]
+
+    flatMap[F[_], A, B](fa: F[A])(f: A => F[B]): F[B]
+    OR
+    compose[F[_], A, B, C](f: A => F[B], g: B => F[C]): F[C]
+    OR
+    map[F[_], A, B](fa: F[A])(f: A => B): F[B]
+    join[F[_], A](ffa: F[F[A]]): F[A]
+
+Traverse is a Functor AND a Foldable
+    traverse[F[_], M[_]: Applicative, A, B](fa: F[A])(f: A => M[B]): M[F[B]]
+    OR
+    sequence[F[_], M[_]: Applicative, A](fma: F[M[A]]): M[F[A]]

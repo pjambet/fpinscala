@@ -287,6 +287,7 @@ object Gen {
 }
 
 case class SGen[+A](g: Int => Gen[A]) {
+
   def apply(n: Int): Gen[A] = g(n)
 
   def map[B](f: A => B): SGen[B] =

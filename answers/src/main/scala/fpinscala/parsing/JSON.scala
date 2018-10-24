@@ -26,8 +26,8 @@ object JSON {
     def keyval = escapedQuoted ** (":" *> value)
     def lit = scope("literal") {
       "null".as(JNull) |
-      double.map(JNumber(_)) |
-      escapedQuoted.map(JString(_)) |
+      double.map(JNumber) |
+      escapedQuoted.map(JString) |
       "true".as(JBool(true)) |
       "false".as(JBool(false))
     }
@@ -40,7 +40,9 @@ object JSON {
  * JSON parsing example.
  */
 object JSONExample extends App {
-  val jsonTxt = """
+
+  def test = {
+    val jsonTxt = """
 {
   "Company name" : "Microsoft Corporation",
   "Ticker"  : "MSFT",
@@ -51,13 +53,13 @@ object JSONExample extends App {
 }
 """
 
-  val malformedJson1 = """
+    val malformedJson1 = """
 {
   "Company name" ; "Microsoft Corporation"
 }
 """
 
-  val malformedJson2 = """
+    val malformedJson2 = """
 [
   [ "HPQ", "IBM",
   "YHOO", "DELL" ++
@@ -65,17 +67,20 @@ object JSONExample extends App {
   ]
 ]
 """
+    val P = fpinscala.parsing.Reference
+    import fpinscala.parsing.ReferenceTypes.Parser
 
-  val P = fpinscala.parsing.Reference
-  import fpinscala.parsing.ReferenceTypes.Parser
+    def printResult[E](e: Either[E,JSON]) =
+      e.fold(println, println)
 
-  def printResult[E](e: Either[E,JSON]) =
-    e.fold(println, println)
-
-  val json: Parser[JSON] = JSON.jsonParser(P)
-  printResult { P.run(json)(jsonTxt) }
-  println("--")
-  printResult { P.run(json)(malformedJson1) }
-  println("--")
-  printResult { P.run(json)(malformedJson2) }
+    val json: Parser[JSON] = JSON.jsonParser(P)
+    printResult {
+      val r = P.run(json)(jsonTxt)
+      r
+    }
+    println("--")
+    printResult { P.run(json)(malformedJson1) }
+    println("--")
+    printResult { P.run(json)(malformedJson2) }
+  }
 }

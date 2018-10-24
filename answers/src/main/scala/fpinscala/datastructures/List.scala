@@ -37,6 +37,10 @@ object List { // `List` companion object. Contains functions for creating and wo
       case Cons(h,t) => Cons(h, append(t, a2))
     }
 
+  // foldRight[Int, Int](List[Int](1,2,3), 0)((a, b) => a + b)
+  // f(1, foldRight(2,3))
+  // f(1, f(2, foldRight(3))
+  // f(1, f(2, f(3, 0))
   def foldRight[A,B](as: List[A], z: B)(f: (A, B) => B): B = // Utility functions
     as match {
       case Nil => z
